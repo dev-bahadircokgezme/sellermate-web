@@ -60,7 +60,7 @@ export default async function ProductsPage({searchParams}:{searchParams:Promise<
   return <main className="content">
     <header className="topbar">
       <div><p className="eyebrow">SELLERMATE</p><h1>Ürünler ve Kârlılık</h1><p className="muted">Ürün maliyetlerini yönet; gerçek Trendyol komisyonu ve kargo payıyla ürün bazında net sonucu gör.</p></div>
-      <a className="primaryButton" href="/">Dashboard</a>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}><a className="secondaryButton" href="/urunler/riskler">Ürün Riskleri</a><a className="primaryButton" href="/">Dashboard</a></div>
     </header>
 
     <section className="metricGrid">
