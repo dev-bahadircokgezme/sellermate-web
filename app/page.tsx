@@ -1,137 +1,31 @@
-const metrics = [
-  { label: "Bugünkü Ciro", value: "₺0,00", note: "Trendyol bağlantısı bekleniyor" },
-  { label: "Tahmini Net Kâr", value: "₺0,00", note: "Maliyet ve kesintilerle hesaplanacak" },
-  { label: "Sipariş", value: "0", note: "Bugün" },
-  { label: "Net Kâr Marjı", value: "%0,0", note: "Kesinleşen finans verileriyle" },
-];
+import { neon } from "@neondatabase/serverless";
 
-const menu = [
-  "Dashboard",
-  "Siparişler",
-  "Ürünler",
-  "Kârlılık",
-  "Finans",
-  "Raporlar",
-  "Entegrasyonlar",
-  "Ekip",
-  "Ayarlar",
-];
+export const dynamic = "force-dynamic";
 
-export default function Home() {
-  return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div>
-          <div className="brand">SellerMate</div>
-          <div className="brandSub">Marketplace Control Center</div>
-        </div>
+const menu = ["Dashboard", "Siparişler", "Ürünler", "Kârlılık", "Finans", "Raporlar", "Entegrasyonlar", "Ekip", "Ayarlar"];
 
-        <nav className="nav">
-          {menu.map((item, index) => (
-            <a className={index === 0 ? "navItem active" : "navItem"} href="#" key={item}>
-              {item}
-            </a>
-          ))}
-        </nav>
+function money(value: number) {
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
+}
 
-        <div className="sidebarFooter">
-          <span className="statusDot" />
-          Sistem kurulumu devam ediyor
-        </div>
-      </aside>
+export default async function Home() {
+  const sql = neon(process.env.DATABASE_URL!);
+  const [summary] = await sql`SELECT COUNT(*)::int AS orders, COALESCE(SUM(gross_amount),0)::float AS revenue FROM orders`;
+  const [today] = await sql`SELECT COUNT(*)::int AS orders, COALESCE(SUM(gross_amount),0)::float AS revenue FROM orders WHERE ordered_at >= date_trunc('day', now() AT TIME ZONE 'Europe/Istanbul')`;
+  const recent = await sql`SELECT o.marketplace_order_number, o.status, o.gross_amount, o.ordered_at, COALESCE(string_agg(oi.product_name, ', '), '') AS products FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id GROUP BY o.id ORDER BY o.ordered_at DESC LIMIT 10`;
+  const metrics = [
+    { label: "Bugünkü Ciro", value: money(Number(today.revenue)), note: `${today.orders} sipariş bugün` },
+    { label: "Toplam Aktarılan Ciro", value: money(Number(summary.revenue)), note: "SellerMate veritabanındaki siparişler" },
+    { label: "Aktarılan Sipariş", value: String(summary.orders), note: "Trendyol" },
+    { label: "Net Kâr", value: "Hesaplanıyor", note: "Maliyet + komisyon verileri eklenecek" },
+  ];
 
-      <section className="content">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">SELLERMATE</p>
-            <h1>Satış ve Kârlılık Dashboard</h1>
-            <p className="muted">Tüm pazaryeri performansını tek merkezden yönetin.</p>
-          </div>
-          <button className="primaryButton">Trendyol&apos;u Bağla</button>
-        </header>
-
-        <section className="metricGrid">
-          {metrics.map((metric) => (
-            <article className="card metricCard" key={metric.label}>
-              <p className="metricLabel">{metric.label}</p>
-              <strong className="metricValue">{metric.value}</strong>
-              <p className="metricNote">{metric.note}</p>
-            </article>
-          ))}
-        </section>
-
-        <section className="dashboardGrid">
-          <article className="card chartCard">
-            <div className="cardHeader">
-              <div>
-                <h2>Satış Özeti</h2>
-                <p className="muted">Gerçek siparişler bağlandığında günlük ciro burada görünecek.</p>
-              </div>
-              <span className="pill">Son 30 gün</span>
-            </div>
-            <div className="emptyChart">
-              <div className="bars" aria-hidden="true">
-                {[30, 48, 36, 62, 55, 77, 68, 86, 72, 92, 80, 100].map((height, index) => (
-                  <span style={{ height: `${height}%` }} key={index} />
-                ))}
-              </div>
-              <p>Trendyol entegrasyonu sonrası gerçek veriler otomatik işlenecek.</p>
-            </div>
-          </article>
-
-          <article className="card integrationCard">
-            <div className="cardHeader">
-              <div>
-                <h2>Entegrasyon Durumu</h2>
-                <p className="muted">İlk kanal</p>
-              </div>
-            </div>
-            <div className="integrationRow">
-              <div className="marketLogo">TY</div>
-              <div className="integrationInfo">
-                <strong>Trendyol</strong>
-                <span>Henüz bağlı değil</span>
-              </div>
-              <span className="connectionBadge">Bağlantı bekliyor</span>
-            </div>
-            <div className="integrationChecklist">
-              <p>✓ Sipariş senkronizasyon altyapısı</p>
-              <p>✓ Ürün ve maliyet eşleştirme planı</p>
-              <p>✓ Finans/kesinti hesaplama yapısı</p>
-              <p className="pending">○ API kimlik bilgileri ve ilk gerçek veri testi</p>
-            </div>
-          </article>
-        </section>
-
-        <section className="card ordersCard">
-          <div className="cardHeader">
-            <div>
-              <h2>Son Siparişler</h2>
-              <p className="muted">Trendyol siparişleri bu tabloya aktarılacak.</p>
-            </div>
-          </div>
-          <div className="tableWrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Sipariş</th>
-                  <th>Ürün</th>
-                  <th>Satış</th>
-                  <th>Maliyet</th>
-                  <th>Kesintiler</th>
-                  <th>Net Kâr</th>
-                  <th>Durum</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={7} className="emptyCell">Henüz senkronize edilmiş sipariş yok.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-    </main>
-  );
+  return <main className="shell">
+    <aside className="sidebar"><div><div className="brand">SellerMate</div><div className="brandSub">Marketplace Control Center</div></div><nav className="nav">{menu.map((item,index)=><a className={index===0?"navItem active":"navItem"} href={item==="Siparişler"?"/siparisler":"#"} key={item}>{item}</a>)}</nav><div className="sidebarFooter"><span className="statusDot"/> Trendyol bağlı</div></aside>
+    <section className="content">
+      <header className="topbar"><div><p className="eyebrow">SELLERMATE</p><h1>Satış ve Kârlılık Dashboard</h1><p className="muted">Trendyol gerçek satış verileri</p></div><span className="connectionBadge">Trendyol Bağlı</span></header>
+      <section className="metricGrid">{metrics.map(m=><article className="card metricCard" key={m.label}><p className="metricLabel">{m.label}</p><strong className="metricValue">{m.value}</strong><p className="metricNote">{m.note}</p></article>)}</section>
+      <section className="card ordersCard"><div className="cardHeader"><div><h2>Son Siparişler</h2><p className="muted">Neon veritabanına kaydedilen gerçek Trendyol siparişleri</p></div></div><div className="tableWrap"><table><thead><tr><th>Sipariş</th><th>Ürün</th><th>Satış</th><th>Tarih</th><th>Durum</th></tr></thead><tbody>{recent.map((o:any)=><tr key={o.marketplace_order_number}><td>{o.marketplace_order_number}</td><td>{o.products || "-"}</td><td>{money(Number(o.gross_amount))}</td><td>{new Date(o.ordered_at).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</td><td>{o.status}</td></tr>)}</tbody></table></div></section>
+    </section>
+  </main>;
 }
