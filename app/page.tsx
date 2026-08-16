@@ -13,6 +13,7 @@ function menuHref(item:string){
   if(item==="Ürünler") return "/urunler";
   if(item==="Kârlılık") return "/karlilik";
   if(item==="Finans") return "/finans";
+  if(item==="Raporlar") return "/raporlar";
   return "#";
 }
 
