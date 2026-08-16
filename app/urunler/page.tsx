@@ -20,16 +20,31 @@ export default async function ProductsPage({searchParams}:{searchParams:Promise<
   )`;
 
   const products = await sql`
+    WITH order_totals AS (
+      SELECT order_id, COALESCE(SUM(quantity*unit_price),0)::float AS item_total
+      FROM order_items GROUP BY order_id
+    ), finance AS (
+      SELECT order_id,
+        COALESCE(SUM(CASE WHEN type IN ('Sale','Return') THEN commission_amount ELSE 0 END),0)::float AS commission,
+        COALESCE(SUM(CASE WHEN type='Cargo' THEN amount ELSE 0 END),0)::float AS cargo
+      FROM financial_transactions
+      WHERE order_id IS NOT NULL
+      GROUP BY order_id
+    )
     SELECT p.id,p.barcode,p.sku,p.name,p.cost,
       COUNT(oi.id)::int AS sold_lines,
       COALESCE(SUM(oi.quantity),0)::int AS sold_qty,
       COALESCE(SUM(oi.quantity*oi.unit_price),0)::float AS sales_total,
       COALESCE(SUM(oi.quantity*COALESCE(NULLIF(oi.cost_at_sale,0),p.cost)),0)::float AS cost_total,
+      COALESCE(SUM(CASE WHEN ot.item_total>0 THEN COALESCE(f.commission,0)*((oi.quantity*oi.unit_price)/ot.item_total) ELSE 0 END),0)::float AS commission_total,
+      COALESCE(SUM(CASE WHEN ot.item_total>0 THEN COALESCE(f.cargo,0)*((oi.quantity*oi.unit_price)/ot.item_total) ELSE 0 END),0)::float AS cargo_total,
       MAX(o.ordered_at) AS last_sale_at,
       (SELECT MAX(ch.changed_at) FROM product_cost_history ch WHERE ch.product_id=p.id) AS last_cost_change
     FROM products p
     LEFT JOIN order_items oi ON oi.product_id=p.id
     LEFT JOIN orders o ON o.id=oi.order_id
+    LEFT JOIN order_totals ot ON ot.order_id=oi.order_id
+    LEFT JOIN finance f ON f.order_id=oi.order_id
     WHERE (${q}='' OR p.name ILIKE ${'%' + q + '%'} OR COALESCE(p.barcode,'') ILIKE ${'%' + q + '%'} OR COALESCE(p.sku,'') ILIKE ${'%' + q + '%'})
       AND (${status}='all' OR (${status}='pending' AND COALESCE(p.cost,0)<=0) OR (${status}='ready' AND COALESCE(p.cost,0)>0))
     GROUP BY p.id
@@ -44,18 +59,18 @@ export default async function ProductsPage({searchParams}:{searchParams:Promise<
 
   return <main className="content">
     <header className="topbar">
-      <div><p className="eyebrow">SELLERMATE</p><h1>Ürünler ve Maliyetler</h1><p className="muted">Ürün maliyetlerini yönet, satış performansını ve brüt katkıyı takip et.</p></div>
+      <div><p className="eyebrow">SELLERMATE</p><h1>Ürünler ve Kârlılık</h1><p className="muted">Ürün maliyetlerini yönet; gerçek Trendyol komisyonu ve kargo payıyla ürün bazında net sonucu gör.</p></div>
       <a className="primaryButton" href="/">Dashboard</a>
     </header>
 
     <section className="metricGrid">
       <article className="card metricCard"><p className="metricLabel">Toplam Ürün</p><strong className="metricValue">{Number(summary?.total||0)}</strong><p className="metricNote">SellerMate ürün kataloğu</p></article>
-      <article className="card metricCard"><p className="metricLabel">Maliyeti Hazır</p><strong className="metricValue">{Number(summary?.ready||0)}</strong><p className="metricNote">Kârlılık hesabına hazır</p></article>
+      <article className="card metricCard"><p className="metricLabel">Maliyeti Hazır</p><strong className="metricValue">{Number(summary?.ready||0)}</strong><p className="metricNote">Net kâr hesabına hazır</p></article>
       <article className="card metricCard"><p className="metricLabel">Maliyet Bekleyen</p><strong className="metricValue">{Number(summary?.pending||0)}</strong><p className="metricNote">Daha sonra tamamlanabilir</p></article>
     </section>
 
     <section className="card ordersCard">
-      <div className="cardHeader"><div><h2>Ürün Kataloğu</h2><p className="muted">Ürün adı, barkod veya SKU ile ara.</p></div><span className="pill">{products.length} sonuç</span></div>
+      <div className="cardHeader"><div><h2>Ürün Kataloğu</h2><p className="muted">Komisyon ve kargo, aynı siparişteki ürünlerin satış tutarı oranında dağıtılır.</p></div><span className="pill">{products.length} sonuç</span></div>
       <form method="get" style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:18}}>
         <input name="q" defaultValue={q} placeholder="Ürün, barkod veya SKU ara" style={{minWidth:280,padding:"10px 12px"}}/>
         <select name="status" defaultValue={status} style={{padding:"10px 12px"}}>
@@ -65,15 +80,14 @@ export default async function ProductsPage({searchParams}:{searchParams:Promise<
         {(q||status!=="all")&&<a className="primaryButton" href="/urunler" style={{background:"#6e6e73"}}>Temizle</a>}
       </form>
 
-      <div className="tableWrap"><table><thead><tr><th>Ürün</th><th>Barkod / SKU</th><th>Satılan</th><th>Satış</th><th>Brüt Katkı</th><th>Alış Maliyeti</th><th>Durum</th></tr></thead><tbody>
-        {products.length===0?<tr><td colSpan={7} className="emptyCell">Aramana uygun ürün bulunamadı.</td></tr>:products.map((p:any)=>{
-          const sales=Number(p.sales_total||0);const costTotal=Number(p.cost_total||0);const cost=Number(p.cost||0);const contribution=sales-costTotal;
+      <div className="tableWrap"><table><thead><tr><th>Ürün</th><th>Barkod / SKU</th><th>Satılan</th><th>Satış</th><th>Komisyon</th><th>Kargo</th><th>Net Sonuç</th><th>Alış Maliyeti</th></tr></thead><tbody>
+        {products.length===0?<tr><td colSpan={8} className="emptyCell">Aramana uygun ürün bulunamadı.</td></tr>:products.map((p:any)=>{
+          const sales=Number(p.sales_total||0);const costTotal=Number(p.cost_total||0);const cost=Number(p.cost||0);const commission=Number(p.commission_total||0);const cargo=Number(p.cargo_total||0);const net=sales-costTotal-commission-cargo;
           return <tr key={p.id}>
             <td><a href={`/urunler/${encodeURIComponent(p.id)}`}><strong>{p.name}</strong></a>{p.last_sale_at&&<div className="metricNote">Son satış: {new Date(p.last_sale_at).toLocaleDateString("tr-TR",{timeZone:"Europe/Istanbul"})}</div>}</td>
-            <td>{p.barcode||p.sku||"-"}</td><td>{p.sold_qty}</td><td>{money(sales)}</td>
-            <td>{cost>0?money(contribution):"Maliyet bekliyor"}</td>
+            <td>{p.barcode||p.sku||"-"}</td><td>{p.sold_qty}</td><td>{money(sales)}</td><td>{money(commission)}</td><td>{money(cargo)}</td>
+            <td><strong>{cost>0?money(net):"Maliyet bekliyor"}</strong></td>
             <td><CostEditor id={p.id} initialCost={cost}/></td>
-            <td><span className="pill">{cost>0?"Hazır":"Sonra girilecek"}</span></td>
           </tr>})}
       </tbody></table></div>
     </section>
