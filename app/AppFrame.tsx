@@ -39,7 +39,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
           <div className="navUtilities">
             <a className="navUtilityButton" href="/siparisler" title="Ara">⌕</a>
-            <a className="navUtilityButton" href="/entegrasyonlar" title="Entegrasyonlar">◌</a>
+            <a className={pathname.startsWith("/uyarilar")?"navUtilityButton active":"navUtilityButton"} href="/uyarilar" title="Uyarılar">♢</a>
             <a className="profileChip" href="/ayarlar"><span className="profileAvatar">SM</span><span className="profileText"><strong>SellerMate</strong><small>Yönetici</small></span><span className="chevron">⌄</span></a>
           </div>
         </div>
