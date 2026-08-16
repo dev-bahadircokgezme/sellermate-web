@@ -23,7 +23,7 @@ export async function GET() {
     for(const inv of cargoInvoices){
       const invoiceId=String(inv.id??"");
       if(!invoiceId) continue;
-      const detailUrl=`https://apigw.trendyol.com/integration/finance/che/sellers/${sellerId}/cargo-invoice/${encodeURIComponent(invoiceId)}?page=0&size=1000`;
+      const detailUrl=`https://apigw.trendyol.com/integration/finance/che/sellers/${sellerId}/cargo-invoice/${encodeURIComponent(invoiceId)}/items?page=0&size=500`;
       const detailRes=await fetch(detailUrl,{headers,cache:"no-store"});
       if(!detailRes.ok){invoiceResults.push({invoiceId,status:detailRes.status,items:0});continue;}
       const detailData=await detailRes.json();
@@ -35,10 +35,10 @@ export async function GET() {
         const desi=Number(item.desi??0);
         let orderId:null|string=null;
         if(orderNumber){const found=await sql`SELECT id FROM orders WHERE marketplace_order_number=${orderNumber} LIMIT 1`;if(found.length){orderId=String(found[0].id);matched++;}}
-        const id=`ty-cargo-${createHash("sha1").update(`${invoiceId}|${orderNumber}|${amount}|${desi}|${item.trackingNumber??""}`).digest("hex")}`;
+        const id=`ty-cargo-${createHash("sha1").update(`${invoiceId}|${orderNumber}|${amount}|${desi}|${item.parcelUniqueId??""}`).digest("hex")}`;
         await sql`INSERT INTO financial_transactions(id,company_id,marketplace_account_id,order_id,type,amount,description,transaction_at,order_number,desi,invoice_id,raw_type)
-          VALUES(${id},'default-company','trendyol-main',${orderId},'Cargo',${amount},${String(item.description??"Trendyol kargo faturası")},${new Date(Number(inv.transactionDate??Date.now())).toISOString()},${orderNumber},${desi},${invoiceId},'Cargo')
-          ON CONFLICT(id) DO UPDATE SET order_id=EXCLUDED.order_id,amount=EXCLUDED.amount,order_number=EXCLUDED.order_number,desi=EXCLUDED.desi,invoice_id=EXCLUDED.invoice_id`;
+          VALUES(${id},'default-company','trendyol-main',${orderId},'Cargo',${amount},${String(item.shipmentPackageType??"Trendyol kargo faturası")},${new Date(Number(inv.transactionDate??Date.now())).toISOString()},${orderNumber},${desi},${invoiceId},'Cargo')
+          ON CONFLICT(id) DO UPDATE SET order_id=EXCLUDED.order_id,amount=EXCLUDED.amount,description=EXCLUDED.description,order_number=EXCLUDED.order_number,desi=EXCLUDED.desi,invoice_id=EXCLUDED.invoice_id`;
         synced++;
       }
     }
