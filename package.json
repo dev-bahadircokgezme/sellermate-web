@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
+    "@neondatabase/serverless": "latest",
+    "drizzle-orm": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"
@@ -17,6 +18,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "drizzle-kit": "latest",
     "typescript": "latest"
   }
 }
