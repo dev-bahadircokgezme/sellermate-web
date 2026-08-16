@@ -9,7 +9,6 @@ export async function GET() {
     const apiSecret = process.env.TRENDYOL_API_SECRET;
     const dbUrl = process.env.DATABASE_URL;
     if (!sellerId || !apiKey || !apiSecret || !dbUrl) throw new Error("Required environment variables are not configured");
-
     const endDate = Date.now();
     const startDate = endDate - 15 * 24 * 60 * 60 * 1000;
     const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
@@ -21,6 +20,7 @@ export async function GET() {
     const sql = neon(dbUrl);
     let synced = 0;
     let matched = 0;
+    let unmatched = 0;
 
     for (const r of records) {
       const orderNumber = String(r.orderNumber ?? r.orderNo ?? "");
@@ -29,17 +29,17 @@ export async function GET() {
       const transactionAt = new Date(transactionDateRaw).toISOString();
       const rawKey = `${orderNumber}|${r.transactionType ?? "Sale"}|${r.id ?? r.transactionId ?? ""}|${transactionDateRaw}|${amount}|${r.barcode ?? ""}`;
       const id = `ty-fin-${createHash("sha1").update(rawKey).digest("hex")}`;
-      const orderId = orderNumber ? `ty-${orderNumber}` : null;
+      let linkedOrderId: string | null = null;
       if (orderNumber) {
         const found = await sql`SELECT id FROM orders WHERE marketplace_order_number=${orderNumber} LIMIT 1`;
-        if (found.length) matched++;
-      }
+        if (found.length) { linkedOrderId = String(found[0].id); matched++; } else { unmatched++; }
+      } else { unmatched++; }
       await sql`INSERT INTO financial_transactions (id, company_id, marketplace_account_id, order_id, type, amount, description, transaction_at)
-        VALUES (${id}, 'default-company', 'trendyol-main', ${orderId && orderNumber ? orderId : null}, ${String(r.transactionType ?? "Sale")}, ${amount}, ${String(r.description ?? r.barcode ?? "Trendyol settlement")}, ${transactionAt})
-        ON CONFLICT (id) DO UPDATE SET amount=EXCLUDED.amount, description=EXCLUDED.description, transaction_at=EXCLUDED.transaction_at`;
+        VALUES (${id}, 'default-company', 'trendyol-main', ${linkedOrderId}, ${String(r.transactionType ?? "Sale")}, ${amount}, ${String(r.description ?? r.barcode ?? "Trendyol settlement")}, ${transactionAt})
+        ON CONFLICT (id) DO UPDATE SET order_id=EXCLUDED.order_id, amount=EXCLUDED.amount, description=EXCLUDED.description, transaction_at=EXCLUDED.transaction_at`;
       synced++;
     }
-    return NextResponse.json({ ok: true, synced, matched, message: `${synced} finans kaydı SellerMate veritabanına aktarıldı` });
+    return NextResponse.json({ ok: true, synced, matched, unmatched, message: `${synced} finans kaydı SellerMate veritabanına aktarıldı` });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Finance sync failed" }, { status: 500 });
   }
