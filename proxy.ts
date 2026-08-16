@@ -27,9 +27,27 @@ function allowed(role:string, pathname:string){
   return true;
 }
 
+function isCronAuthorized(req:NextRequest){
+  const cronSecret=process.env.CRON_SECRET;
+  if(!cronSecret) return false;
+  const auth=req.headers.get("authorization");
+  return auth===`Bearer ${cronSecret}`;
+}
+
+function isCronSyncPath(pathname:string){
+  return pathname==="/api/cron/sync" ||
+    pathname==="/api/trendyol/order-history-sync" ||
+    pathname==="/api/trendyol/finance-full-sync" ||
+    pathname==="/api/trendyol/cargo-sync" ||
+    pathname==="/api/products/sync";
+}
+
 export async function proxy(req:NextRequest){
   const {pathname}=req.nextUrl;
   if(pathname.startsWith("/_next")||pathname==="/favicon.ico"||pathname.startsWith("/api/auth")||pathname==="/giris"||pathname==="/davet") return NextResponse.next();
+
+  if(isCronSyncPath(pathname) && isCronAuthorized(req)) return NextResponse.next();
+
   const secret=process.env.AUTH_SECRET;
   if(!secret) return NextResponse.next();
   const s=await session(req.cookies.get(COOKIE)?.value,secret);
