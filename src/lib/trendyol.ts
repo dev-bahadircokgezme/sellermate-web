@@ -8,10 +8,10 @@ function credentials() {
   return { sellerId, apiKey, apiSecret };
 }
 
-export async function getTrendyolOrders() {
+export async function getTrendyolOrders(size = 50) {
   const { sellerId, apiKey, apiSecret } = credentials();
   const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-  const url = `${TRENDYOL_BASE_URL}/${sellerId}/orders?size=10&orderByField=PackageLastModifiedDate&orderByDirection=DESC`;
+  const url = `${TRENDYOL_BASE_URL}/${sellerId}/v2/orders?size=${size}&orderByField=PackageLastModifiedDate&orderByDirection=DESC`;
   const response = await fetch(url, {
     headers: {
       Authorization: `Basic ${auth}`,
