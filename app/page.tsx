@@ -14,6 +14,7 @@ function menuHref(item:string){
   if(item==="Kârlılık") return "/karlilik";
   if(item==="Finans") return "/finans";
   if(item==="Raporlar") return "/raporlar";
+  if(item==="Entegrasyonlar") return "/entegrasyonlar";
   return "#";
 }
 
