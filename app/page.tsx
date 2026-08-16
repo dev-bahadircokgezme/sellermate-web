@@ -8,6 +8,13 @@ function money(value: number) {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
 }
 
+function menuHref(item:string){
+  if(item==="Siparişler") return "/siparisler";
+  if(item==="Ürünler") return "/urunler";
+  if(item==="Kârlılık") return "/karlilik";
+  return "#";
+}
+
 export default async function Home() {
   const sql = neon(process.env.DATABASE_URL!);
   const [summary] = await sql`SELECT COUNT(*)::int AS orders, COALESCE(SUM(gross_amount),0)::float AS revenue FROM orders`;
@@ -17,11 +24,11 @@ export default async function Home() {
     { label: "Bugünkü Ciro", value: money(Number(today.revenue)), note: `${today.orders} sipariş bugün` },
     { label: "Toplam Aktarılan Ciro", value: money(Number(summary.revenue)), note: "SellerMate veritabanındaki siparişler" },
     { label: "Aktarılan Sipariş", value: String(summary.orders), note: "Trendyol" },
-    { label: "Net Kâr", value: "Hesaplanıyor", note: "Maliyet + komisyon verileri eklenecek" },
+    { label: "Net Kâr", value: "Kârlılık ekranında", note: "Gerçek komisyon + kargo + ürün maliyeti" },
   ];
 
   return <main className="shell">
-    <aside className="sidebar"><div><div className="brand">SellerMate</div><div className="brandSub">Marketplace Control Center</div></div><nav className="nav">{menu.map((item,index)=><a className={index===0?"navItem active":"navItem"} href={item==="Siparişler"?"/siparisler":"#"} key={item}>{item}</a>)}</nav><div className="sidebarFooter"><span className="statusDot"/> Trendyol bağlı</div></aside>
+    <aside className="sidebar"><div><div className="brand">SellerMate</div><div className="brandSub">Marketplace Control Center</div></div><nav className="nav">{menu.map((item,index)=><a className={index===0?"navItem active":"navItem"} href={menuHref(item)} key={item}>{item}</a>)}</nav><div className="sidebarFooter"><span className="statusDot"/> Trendyol bağlı</div></aside>
     <section className="content">
       <header className="topbar"><div><p className="eyebrow">SELLERMATE</p><h1>Satış ve Kârlılık Dashboard</h1><p className="muted">Trendyol gerçek satış verileri</p></div><span className="connectionBadge">Trendyol Bağlı</span></header>
       <section className="metricGrid">{metrics.map(m=><article className="card metricCard" key={m.label}><p className="metricLabel">{m.label}</p><strong className="metricValue">{m.value}</strong><p className="metricNote">{m.note}</p></article>)}</section>
